@@ -631,11 +631,6 @@
                     <div id="amountDistChart"></div>
                 </div>
                 
-                <div class="chart-card chart-full">
-                    <h2>📅 Tendencia de Transacciones en el Tiempo</h2>
-                    <div id="timeSeriesChart"></div>
-                </div>
-                
                 <div class="chart-card">
                     <h2>📍 Top Distritos por Volumen</h2>
                     <div id="topBanksChart"></div>
@@ -644,6 +639,11 @@
                 <div class="chart-card">
                     <h2>💳 Métodos de Pago</h2>
                     <div id="statusChart"></div>
+                </div>
+                
+                <div class="chart-card chart-full">
+                    <h2>📅 Distribución temporal irregular</h2>
+                    <div id="timeSeriesChart"></div>
                 </div>
                 
                 <div class="chart-card chart-full">
@@ -671,8 +671,9 @@
                 </div>
                 
                 <div class="chart-card chart-full">
-                    <h2>🗺️ Mapa de Calor de Transacciones</h2>
-                    <div id="heatmapChart"></div>
+                    <h2>⏰ Aumento del recency en un subconjunto de clientes</h2>
+                    <p style="font-size: 13px; color: #4a5568; margin-bottom: 15px; line-height: 1.6;">Al calcular los días transcurridos desde la última transacción, se identifica un grupo que supera los 90 días de inactividad. Este indicador constituye una señal temprana de posible churn.</p>
+                    <div id="heatmapChart" style="width: 100%; overflow-x: auto;"></div>
                 </div>
             </div>
         </div>
@@ -1197,93 +1198,84 @@
         }
 
         function createTimeSeriesChart(data) {
-            // Agrupar por fecha
-            const dateCount = {};
-            const dateAmount = {};
+            // Agrupar por mes (YYYY-MM)
+            const monthCount = {};
+            const monthAmount = {};
             
             data.forEach(item => {
                 if (item.datetime) {
                     const date = new Date(item.datetime);
-                    const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
-                    dateCount[dateStr] = (dateCount[dateStr] || 0) + 1;
-                    dateAmount[dateStr] = (dateAmount[dateStr] || 0) + (parseFloat(item.amount) || 0);
+                    const year = date.getFullYear();
+                    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+                    const monthKey = `${year}-${month}`; // YYYY-MM
+                    
+                    monthCount[monthKey] = (monthCount[monthKey] || 0) + 1;
+                    monthAmount[monthKey] = (monthAmount[monthKey] || 0) + (parseFloat(item.amount) || 0);
                 }
             });
 
-            const sortedDates = Object.keys(dateCount).sort((a, b) => new Date(a) - new Date(b));
-            const counts = sortedDates.map(date => dateCount[date]);
-            const amounts = sortedDates.map(date => dateAmount[date]);
+            // Ordenar por mes
+            const sortedMonths = Object.keys(monthCount).sort();
+            const counts = sortedMonths.map(month => monthCount[month]);
+            const amounts = sortedMonths.map(month => monthAmount[month]);
+            
+            // Formatear etiquetas de mes (Ene 2024, Feb 2024, etc.)
+            const monthLabels = sortedMonths.map(monthKey => {
+                const [year, month] = monthKey.split('-');
+                const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+                return `${monthNames[parseInt(month) - 1]} ${year}`;
+            });
 
-            const trace1 = {
-                x: sortedDates,
+            const trace = {
+                x: monthLabels,
                 y: counts,
-                type: 'scatter',
-                mode: 'lines+markers',
-                name: 'Cantidad',
-                line: {
-                    color: '#1e40af',
-                    width: 3
-                },
+                type: 'bar',
                 marker: {
-                    size: 6,
-                    color: '#3b82f6'
+                    color: counts,
+                    colorscale: [
+                        [0, '#ef4444'],      // Rojo para valores bajos
+                        [0.3, '#f59e0b'],    // Naranja
+                        [0.6, '#10b981'],    // Verde
+                        [1, '#3b82f6']       // Azul para valores altos
+                    ],
+                    showscale: true,
+                    colorbar: {
+                        title: 'Volumen de<br>Transacciones',
+                        thickness: 15,
+                        len: 0.7
+                    },
+                    line: {
+                        color: '#1e3a8a',
+                        width: 1
+                    }
                 },
-                hovertemplate: 'Fecha: %{x}<br>Transacciones: %{y}<extra></extra>'
-            };
-
-            const trace2 = {
-                x: sortedDates,
-                y: amounts,
-                type: 'scatter',
-                mode: 'lines',
-                name: 'Monto Total',
-                yaxis: 'y2',
-                line: {
-                    color: '#0891b2',
-                    width: 2,
-                    dash: 'dash'
+                text: counts,
+                textposition: 'outside',
+                textfont: {
+                    size: 11,
+                    color: '#1a202c',
+                    weight: 'bold'
                 },
-                hovertemplate: 'Fecha: %{x}<br>Monto: S/ %{y:.2f}<extra></extra>'
+                hovertemplate: '<b>%{x}</b><br>Transacciones: %{y}<br>Monto Total: S/ %{customdata:.2f}<extra></extra>',
+                customdata: amounts
             };
 
             const layout = {
-                margin: { t: 40, b: 60, l: 70, r: 70 },
+                margin: { t: 40, b: 80, l: 70, r: 80 },
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 plot_bgcolor: 'rgba(0,0,0,0)',
                 xaxis: {
-                    title: 'Fecha',
+                    title: 'Mes',
                     gridcolor: '#e2e8f0',
                     titlefont: { size: 13 },
-                    automargin: true,
-                    fixedrange: false
+                    tickangle: -45,
+                    automargin: true
                 },
                 yaxis: {
                     title: 'Número de Transacciones',
                     gridcolor: '#e2e8f0',
                     titlefont: { size: 13 },
-                    automargin: true,
-                    fixedrange: false
-                },
-                yaxis2: {
-                    title: 'Monto Total (S/)',
-                    titlefont: { size: 13 },
-                    overlaying: 'y',
-                    side: 'right',
-                    gridcolor: 'rgba(0,0,0,0)',
-                    automargin: true,
-                    fixedrange: false
-                },
-                showlegend: true,
-                legend: {
-                    x: 0.5,
-                    y: 1.05,
-                    xanchor: 'center',
-                    yanchor: 'bottom',
-                    orientation: 'h',
-                    bgcolor: 'rgba(226, 232, 240, 0.9)',
-                    bordercolor: '#cbd5e1',
-                    borderwidth: 1,
-                    font: { size: 12 }
+                    automargin: true
                 },
                 font: { family: 'Inter, sans-serif', size: 11 },
                 autosize: true,
@@ -1291,11 +1283,10 @@
                 height: null
             };
 
-            Plotly.newPlot('timeSeriesChart', [trace1, trace2], layout, { 
+            Plotly.newPlot('timeSeriesChart', [trace], layout, { 
                 responsive: true, 
                 displayModeBar: false
             }).then(() => {
-                // Forzar redimensionamiento después de crear el gráfico
                 setTimeout(() => {
                     Plotly.Plots.resize('timeSeriesChart');
                 }, 100);
@@ -1397,67 +1388,147 @@
         }
 
         function createHeatmapChart(data) {
-            // Crear matriz de transacciones por hora y día de la semana
-            const heatmapData = Array(7).fill().map(() => Array(24).fill(0));
-            const daysOfWeek = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-
+            // Calcular recency (días desde la última transacción) para cada cliente
+            const customerLastTransaction = {};
+            const today = new Date();
+            
+            // Encontrar la última transacción de cada cliente
             data.forEach(item => {
-                if (item.datetime) {
-                    const date = new Date(item.datetime);
-                    if (!isNaN(date.getTime())) {
-                        const day = date.getDay();
-                        const hour = date.getHours();
-                        heatmapData[day][hour]++;
+                if (item.datetime && item.customer_id) {
+                    const transactionDate = new Date(item.datetime);
+                    if (!customerLastTransaction[item.customer_id] || transactionDate > customerLastTransaction[item.customer_id]) {
+                        customerLastTransaction[item.customer_id] = transactionDate;
                     }
                 }
             });
 
+            // Calcular días de inactividad (recency)
+            const customerRecency = {};
+            Object.entries(customerLastTransaction).forEach(([customerId, lastDate]) => {
+                const daysSinceLastTransaction = Math.floor((today - lastDate) / (1000 * 60 * 60 * 24));
+                customerRecency[customerId] = daysSinceLastTransaction;
+            });
+
+            // Ordenar clientes por recency (de mayor a menor)
+            const sortedCustomers = Object.entries(customerRecency)
+                .sort((a, b) => b[1] - a[1]);
+
+            const customerIds = sortedCustomers.map(c => c[0]);
+            const recencyDays = sortedCustomers.map(c => c[1]);
+
+            // Identificar clientes con más de 90 días de inactividad
+            const highRiskCount = recencyDays.filter(days => days > 90).length;
+            const mediumRiskCount = recencyDays.filter(days => days > 60 && days <= 90).length;
+            const lowRiskCount = recencyDays.filter(days => days > 30 && days <= 60).length;
+            const activeCount = recencyDays.filter(days => days <= 30).length;
+
+            // Crear colores según el nivel de riesgo de churn
+            const colors = recencyDays.map(days => {
+                if (days > 90) return '#ef4444';      // Rojo - Alto riesgo (>90 días)
+                if (days > 60) return '#f59e0b';      // Naranja - Riesgo medio (60-90 días)
+                if (days > 30) return '#facc15';      // Amarillo - Riesgo bajo (30-60 días)
+                return '#10b981';                     // Verde - Activo (≤30 días)
+            });
+
+            // Calcular ancho dinámico
+            const barCount = sortedCustomers.length;
+            const minWidth = 1200;
+            const barWidth = 25;
+            const calculatedWidth = Math.max(minWidth, barCount * barWidth);
+
             const trace = {
-                z: heatmapData,
-                x: Array.from({length: 24}, (_, i) => `${i.toString().padStart(2, '0')}:00`),
-                y: daysOfWeek,
-                type: 'heatmap',
-                colorscale: [
-                    [0, '#f0f9ff'],
-                    [0.2, '#bfdbfe'],
-                    [0.4, '#60a5fa'],
-                    [0.6, '#2563eb'],
-                    [0.8, '#1e40af'],
-                    [1, '#1e3a8a']
-                ],
-                showscale: true,
-                colorbar: {
-                    title: 'Transacciones',
-                    thickness: 15,
-                    len: 0.7
+                x: customerIds,
+                y: recencyDays,
+                type: 'bar',
+                marker: {
+                    color: colors,
+                    line: {
+                        color: '#1e3a8a',
+                        width: 1
+                    }
                 },
-                hovertemplate: '%{y}<br>%{x}<br>Transacciones: %{z}<extra></extra>'
+                text: recencyDays,
+                textposition: 'outside',
+                textfont: {
+                    size: 9,
+                    color: '#1a202c'
+                },
+                hovertemplate: '<b>%{x}</b><br>Días de inactividad: %{y}<extra></extra>'
             };
 
             const layout = {
-                margin: { t: 10, b: 60, l: 100, r: 80 },
+                margin: { t: 80, b: 100, l: 70, r: 50 },
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 plot_bgcolor: 'rgba(0,0,0,0)',
                 xaxis: {
-                    title: 'Hora del Día',
-                    side: 'bottom',
-                    titlefont: { size: 12 },
-                    tickfont: { size: 10 }
+                    title: 'ID de Cliente',
+                    gridcolor: '#e2e8f0',
+                    titlefont: { size: 13 },
+                    tickangle: -45,
+                    tickfont: { size: 8 }
                 },
                 yaxis: {
-                    title: 'Día de la Semana',
-                    titlefont: { size: 12 },
-                    tickfont: { size: 10 }
+                    title: 'Días desde última transacción (Recency)',
+                    gridcolor: '#e2e8f0',
+                    titlefont: { size: 13 }
                 },
                 font: { family: 'Inter, sans-serif', size: 11 },
-                autosize: true
+                width: calculatedWidth,
+                height: 500,
+                shapes: [{
+                    type: 'line',
+                    x0: 0,
+                    x1: 1,
+                    xref: 'paper',
+                    y0: 90,
+                    y1: 90,
+                    line: {
+                        color: '#ef4444',
+                        width: 2,
+                        dash: 'dash'
+                    }
+                }],
+                annotations: [
+                    {
+                        text: `Alto Riesgo (>90 días): ${highRiskCount} clientes | Riesgo Medio (60-90): ${mediumRiskCount} | Riesgo Bajo (30-60): ${lowRiskCount} | Activos (≤30): ${activeCount}`,
+                        xref: 'paper',
+                        yref: 'paper',
+                        x: 0.5,
+                        y: 1.12,
+                        xanchor: 'center',
+                        yanchor: 'bottom',
+                        showarrow: false,
+                        font: {
+                            size: 11,
+                            color: '#1e40af',
+                            weight: 'bold'
+                        },
+                        bgcolor: 'rgba(226, 232, 240, 0.9)',
+                        borderpad: 4,
+                        bordercolor: '#3b82f6',
+                        borderwidth: 1
+                    },
+                    {
+                        text: 'Umbral de Churn: 90 días',
+                        xref: 'paper',
+                        yref: 'y',
+                        x: 1.02,
+                        y: 90,
+                        xanchor: 'left',
+                        showarrow: false,
+                        font: {
+                            size: 10,
+                            color: '#ef4444',
+                            weight: 'bold'
+                        }
+                    }
+                ]
             };
 
-            Plotly.newPlot('heatmapChart', [trace], layout, { responsive: true, displayModeBar: false }).then(() => {
-                // Forzar redimensionamiento después de crear el gráfico
-                setTimeout(() => {
-                    Plotly.Plots.resize('heatmapChart');
-                }, 100);
+            Plotly.newPlot('heatmapChart', [trace], layout, { 
+                responsive: false,
+                displayModeBar: true,
+                scrollZoom: true
             });
         }
 
