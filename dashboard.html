@@ -654,6 +654,9 @@
                             <option value="10+">Más de 10</option>
                         </select>
                         <button onclick="document.getElementById('transactionCountFilter').value='all'; applyCustomerChartFilter();" style="padding: 8px 16px; background: #cbd5e1; color: #334155; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px;">Limpiar</button>
+                        <div id="customerCountBadge" style="padding: 8px 16px; background: #dbeafe; color: #1e40af; border-radius: 8px; font-weight: 600; font-size: 14px; border: 2px solid #3b82f6;">
+                            Total: 0 clientes
+                        </div>
                     </div>
                     <div id="customerDistributionChart" style="width: 100%; overflow-x: auto;"></div>
                 </div>
@@ -1414,6 +1417,12 @@
 
             // Ordenar clientes por número de transacciones (de mayor a menor)
             const sortedCustomers = filteredCustomers.sort((a, b) => b[1] - a[1]);
+
+            // Actualizar badge con el conteo de clientes
+            const countBadge = document.getElementById('customerCountBadge');
+            if (countBadge) {
+                countBadge.textContent = `Total: ${sortedCustomers.length} cliente${sortedCustomers.length !== 1 ? 's' : ''}`;
+            }
 
             const customerIds = sortedCustomers.map(c => c[0]);
             const transactionCounts = sortedCustomers.map(c => c[1]);
