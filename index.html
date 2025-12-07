@@ -606,6 +606,17 @@
             </div>
         </div>
 
+        <!-- Modal de Resumen de Transacciones por Cliente -->
+        <div class="modal" id="transactionSummaryModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>📊 Resumen de Clientes por Número de Transacciones</h2>
+                    <button class="modal-close" onclick="closeTransactionSummaryModal()">×</button>
+                </div>
+                <div id="transactionSummaryTableContainer"></div>
+            </div>
+        </div>
+
         <div id="dashboardContent" style="display: none;">
             <div class="stats-grid" id="statsGrid"></div>
             
@@ -649,14 +660,12 @@
                             <option value="6">6 transacciones</option>
                             <option value="7">7 transacciones</option>
                             <option value="8">8 transacciones</option>
-                            <option value="9">9 transacciones</option>
-                            <option value="10">10 transacciones</option>
-                            <option value="10+">Más de 10</option>
                         </select>
                         <button onclick="document.getElementById('transactionCountFilter').value='all'; applyCustomerChartFilter();" style="padding: 8px 16px; background: #cbd5e1; color: #334155; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px;">Limpiar</button>
                         <div id="customerCountBadge" style="padding: 8px 16px; background: #dbeafe; color: #1e40af; border-radius: 8px; font-weight: 600; font-size: 14px; border: 2px solid #3b82f6;">
                             Total: 0 clientes
                         </div>
+                        <button onclick="showTransactionSummaryModal()" style="padding: 8px 16px; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 15px rgba(59, 130, 246, 0.3)'" onmouseout="this.style.transform=''; this.style.boxShadow=''">📊 Resumen</button>
                     </div>
                     <div id="customerDistributionChart" style="width: 100%; overflow-x: auto;"></div>
                 </div>
@@ -921,6 +930,76 @@
 
         function closeSummaryModal() {
             document.getElementById('summaryModal').classList.remove('active');
+        }
+
+        function showTransactionSummaryModal() {
+            createTransactionSummaryTable();
+            document.getElementById('transactionSummaryModal').classList.add('active');
+        }
+
+        function closeTransactionSummaryModal() {
+            document.getElementById('transactionSummaryModal').classList.remove('active');
+        }
+
+        function createTransactionSummaryTable() {
+            const customerTransactions = window.customerTransactionsData || {};
+            
+            // Contar cuántos clientes tienen cada número de transacciones
+            const transactionCounts = {};
+            Object.values(customerTransactions).forEach(count => {
+                transactionCounts[count] = (transactionCounts[count] || 0) + 1;
+            });
+
+            // Ordenar por número de transacciones
+            const sortedCounts = Object.entries(transactionCounts)
+                .map(([txCount, customerCount]) => [parseInt(txCount), customerCount])
+                .sort((a, b) => a[0] - b[0]);
+
+            // Calcular totales
+            const totalCustomers = Object.keys(customerTransactions).length;
+            const totalTransactions = Object.values(customerTransactions).reduce((sum, count) => sum + count, 0);
+
+            // Generar HTML de la tabla
+            let tableHTML = `
+                <table class="pivot-table">
+                    <thead>
+                        <tr>
+                            <th>Número de Transacciones</th>
+                            <th>Cantidad de Clientes</th>
+                            <th>% del Total</th>
+                            <th>Total de Transacciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            // Agregar filas de datos
+            sortedCounts.forEach(([txCount, customerCount]) => {
+                const percentage = ((customerCount / totalCustomers) * 100).toFixed(2);
+                const txTotal = txCount * customerCount;
+                tableHTML += `
+                    <tr>
+                        <td><strong>${txCount} transacción${txCount !== 1 ? 'es' : ''}</strong></td>
+                        <td>${customerCount}</td>
+                        <td>${percentage}%</td>
+                        <td>${txTotal}</td>
+                    </tr>
+                `;
+            });
+
+            // Agregar fila de totales
+            tableHTML += `
+                    <tr class="total-row">
+                        <td><strong>Total</strong></td>
+                        <td>${totalCustomers}</td>
+                        <td>100.00%</td>
+                        <td>${totalTransactions}</td>
+                    </tr>
+                    </tbody>
+                </table>
+            `;
+
+            document.getElementById('transactionSummaryTableContainer').innerHTML = tableHTML;
         }
 
         function createPivotTable(data) {
@@ -1407,12 +1486,8 @@
 
             // Aplicar filtro según selección
             if (filterValue !== 'all') {
-                if (filterValue === '10+') {
-                    filteredCustomers = filteredCustomers.filter(([id, count]) => count > 10);
-                } else {
-                    const targetCount = parseInt(filterValue);
-                    filteredCustomers = filteredCustomers.filter(([id, count]) => count === targetCount);
-                }
+                const targetCount = parseInt(filterValue);
+                filteredCustomers = filteredCustomers.filter(([id, count]) => count === targetCount);
             }
 
             // Ordenar clientes por número de transacciones (de mayor a menor)
@@ -1464,9 +1539,7 @@
             
             const filterText = filterValue === 'all' 
                 ? 'Mostrando todos los clientes' 
-                : filterValue === '10+' 
-                    ? `Filtrado: Clientes con más de 10 transacciones (${sortedCustomers.length} clientes)`
-                    : `Filtrado: Clientes con ${filterValue} transacción(es) (${sortedCustomers.length} clientes)`;
+                : `Filtrado: Clientes con ${filterValue} transacción(es) (${sortedCustomers.length} clientes)`;
 
             const layout = {
                 margin: { t: 50, b: 100, l: 70, r: 50 },
