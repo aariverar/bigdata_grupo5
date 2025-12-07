@@ -150,6 +150,153 @@
             background: #94a3b8;
         }
 
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: rgba(226, 232, 240, 0.98);
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 900px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #cbd5e1;
+        }
+
+        .modal-header h2 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1a202c;
+        }
+
+        .modal-close {
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 35px;
+            height: 35px;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .modal-close:hover {
+            background: #dc2626;
+            transform: rotate(90deg);
+        }
+
+        .pivot-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .pivot-table th,
+        .pivot-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .pivot-table th {
+            background: #1e40af;
+            color: white;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        .pivot-table tr:hover {
+            background: #f1f5f9;
+        }
+
+        .pivot-table .total-row {
+            background: #dbeafe;
+            font-weight: 700;
+            color: #1e40af;
+        }
+
+        .pivot-table .total-row td {
+            border-top: 2px solid #3b82f6;
+        }
+
+        .summary-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 15px 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4);
+            transition: all 0.3s ease;
+            z-index: 999;
+            display: none;
+        }
+
+        .summary-btn.active {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .summary-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 35px rgba(59, 130, 246, 0.5);
+        }
+
         .file-input-wrapper {
             position: relative;
             display: inline-block;
@@ -443,6 +590,22 @@
             <p>⏳ Procesando datos...</p>
         </div>
 
+        <!-- Botón flotante para mostrar resumen -->
+        <button class="summary-btn" id="summaryBtn" onclick="showSummaryModal()">
+            📊 Ver Resumen General
+        </button>
+
+        <!-- Modal de Resumen -->
+        <div class="modal" id="summaryModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>📊 Resumen General por Categoría</h2>
+                    <button class="modal-close" onclick="closeSummaryModal()">×</button>
+                </div>
+                <div id="pivotTableContainer"></div>
+            </div>
+        </div>
+
         <div id="dashboardContent" style="display: none;">
             <div class="stats-grid" id="statsGrid"></div>
             
@@ -719,6 +882,88 @@
             createTopBanksChart(data);
             createStatusChart(data);
             createHeatmapChart(data);
+            
+            // Mostrar botón de resumen
+            document.getElementById('summaryBtn').classList.add('active');
+        }
+
+        function showSummaryModal() {
+            createPivotTable(filteredData);
+            document.getElementById('summaryModal').classList.add('active');
+        }
+
+        function closeSummaryModal() {
+            document.getElementById('summaryModal').classList.remove('active');
+        }
+
+        function createPivotTable(data) {
+            // Crear tabla pivote por categoría
+            const pivotData = {};
+            
+            data.forEach(item => {
+                const category = item.category || 'Sin categoría';
+                if (!pivotData[category]) {
+                    pivotData[category] = {
+                        count: 0,
+                        sumTransactionId: 0,
+                        totalAmount: 0
+                    };
+                }
+                pivotData[category].count++;
+                pivotData[category].sumTransactionId += item.transaction_id || 0;
+                pivotData[category].totalAmount += parseFloat(item.amount) || 0;
+            });
+
+            // Calcular totales
+            let totalCount = 0;
+            let totalSumId = 0;
+            let totalAmount = 0;
+
+            Object.values(pivotData).forEach(cat => {
+                totalCount += cat.count;
+                totalSumId += cat.sumTransactionId;
+                totalAmount += cat.totalAmount;
+            });
+
+            // Generar HTML de la tabla
+            let tableHTML = `
+                <table class="pivot-table">
+                    <thead>
+                        <tr>
+                            <th>Categoría</th>
+                            <th>Cuenta de Transacciones</th>
+                            <th>Suma de Transaction ID</th>
+                            <th>Monto Total (S/)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            // Agregar filas de datos
+            Object.entries(pivotData).sort((a, b) => a[0].localeCompare(b[0])).forEach(([category, values]) => {
+                tableHTML += `
+                    <tr>
+                        <td><strong>${category}</strong></td>
+                        <td>${values.count}</td>
+                        <td>${values.sumTransactionId.toLocaleString()}</td>
+                        <td>S/ ${values.totalAmount.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+
+            // Agregar fila de totales
+            tableHTML += `
+                    <tr class="total-row">
+                        <td><strong>Total general</strong></td>
+                        <td>${totalCount}</td>
+                        <td>${totalSumId.toLocaleString()}</td>
+                        <td>S/ ${totalAmount.toFixed(2)}</td>
+                    </tr>
+                    </tbody>
+                </table>
+            `;
+
+            document.getElementById('pivotTableContainer').innerHTML = tableHTML;
         }
 
         function createStats(data) {
