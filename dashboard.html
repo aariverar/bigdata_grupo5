@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Transacciones Bancarias</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #3b82f6 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: rgba(226, 232, 240, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px 40px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+        }
+
+        .header h1 {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #718096;
+            font-size: 16px;
+        }
+
+        .upload-section {
+            background: rgba(226, 232, 240, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+            text-align: center;
+        }
+
+        .filters-section {
+            background: rgba(226, 232, 240, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+            display: none;
+        }
+
+        .filters-section.active {
+            display: block;
+        }
+
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .filter-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #334155;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-group select,
+        .filter-group input {
+            padding: 10px 12px;
+            border: 2px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+            background: white;
+            color: #1e293b;
+            transition: all 0.2s ease;
+        }
+
+        .filter-group select:focus,
+        .filter-group input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .filter-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 15px;
+        }
+
+        .filter-btn {
+            padding: 10px 25px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .filter-btn.apply {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white;
+        }
+
+        .filter-btn.apply:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        .filter-btn.reset {
+            background: #cbd5e1;
+            color: #334155;
+        }
+
+        .filter-btn.reset:hover {
+            background: #94a3b8;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            cursor: pointer;
+            overflow: hidden;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-input-label {
+            display: inline-block;
+            padding: 15px 40px;
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            color: white;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .file-input-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4);
+        }
+
+        .file-name {
+            margin-top: 15px;
+            color: #4a5568;
+            font-size: 14px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(226, 232, 240, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            min-height: 140px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .stat-card h3 {
+            font-size: 13px;
+            font-weight: 500;
+            color: #718096;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 5px;
+            word-break: break-word;
+        }
+
+        .stat-change {
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .stat-change.positive {
+            color: #48bb78;
+        }
+
+        .stat-change.negative {
+            color: #f56565;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .chart-card {
+            background: rgba(226, 232, 240, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            min-height: 450px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chart-card h2 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1a202c;
+            margin-bottom: 20px;
+            flex-shrink: 0;
+        }
+
+        .chart-card > div[id$="Chart"] {
+            flex: 1;
+            min-height: 0;
+        }
+
+        .chart-full {
+            grid-column: 1 / -1;
+            min-height: 500px;
+        }
+
+        .chart-full > div[id$="Chart"] {
+            width: 100%;
+            height: 100%;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+            color: white;
+            font-size: 18px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        @media (max-width: 1400px) {
+            .stats-grid {
+                grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            }
+        }
+
+        @media (max-width: 1200px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .chart-card {
+                min-height: 400px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .stat-card {
+                min-height: 120px;
+                padding: 20px;
+            }
+            
+            .stat-value {
+                font-size: 24px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+            
+            .header {
+                padding: 20px 25px;
+            }
+            
+            .chart-card {
+                padding: 20px;
+                min-height: 350px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stat-value {
+                font-size: 22px;
+            }
+            
+            body {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Dashboard de Transacciones Bancarias</h1>
+            <p>Big Data - Grupo 5: Análisis de transacciones interbancarias</p>
+        </div>
+
+        <div class="upload-section" id="uploadSection">
+            <div class="file-input-wrapper">
+                <input type="file" id="fileInput" accept=".xlsx, .xls" onchange="handleFileUpload(event)">
+                <label for="fileInput" class="file-input-label">
+                    📁 Cargar Archivo Excel
+                </label>
+            </div>
+            <div class="file-name" id="fileName">Selecciona el archivo: interbank_transactions_dataset_full.xlsx</div>
+        </div>
+
+        <div class="filters-section" id="filtersSection">
+            <div class="filters-grid">
+                <div class="filter-group">
+                    <label>👤 ID Cliente</label>
+                    <select id="filterCustomer">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label>📊 Categoría</label>
+                    <select id="filterCategory">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label>📅 Fecha Inicio</label>
+                    <input type="date" id="filterDateStart">
+                </div>
+                
+                <div class="filter-group">
+                    <label>📅 Fecha Fin</label>
+                    <input type="date" id="filterDateEnd">
+                </div>
+                
+                <div class="filter-group">
+                    <label>📍 Distrito</label>
+                    <select id="filterDistrict">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label>💳 Método de Pago</label>
+                    <select id="filterPaymentMethod">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label>🔄 Reembolso</label>
+                    <select id="filterRefund">
+                        <option value="">Todos</option>
+                        <option value="0">Sin reembolso</option>
+                        <option value="1">Con reembolso</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label>🏪 Tipo de Comercio</label>
+                    <select id="filterMerchantType">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="filter-actions">
+                <button class="filter-btn reset" onclick="resetFilters()">Limpiar Filtros</button>
+                <button class="filter-btn apply" onclick="applyFilters()">Aplicar Filtros</button>
+            </div>
+        </div>
+
+        <div class="loading" id="loading">
+            <p>⏳ Procesando datos...</p>
+        </div>
+
+        <div id="dashboardContent" style="display: none;">
+            <div class="stats-grid" id="statsGrid"></div>
+            
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <h2>🏪 Transacciones por Categoría</h2>
+                    <div id="transactionTypeChart"></div>
+                </div>
+                
+                <div class="chart-card">
+                    <h2>💰 Distribución de Montos</h2>
+                    <div id="amountDistChart"></div>
+                </div>
+                
+                <div class="chart-card chart-full">
+                    <h2>📅 Tendencia de Transacciones en el Tiempo</h2>
+                    <div id="timeSeriesChart"></div>
+                </div>
+                
+                <div class="chart-card">
+                    <h2>📍 Top Distritos por Volumen</h2>
+                    <div id="topBanksChart"></div>
+                </div>
+                
+                <div class="chart-card">
+                    <h2>💳 Métodos de Pago</h2>
+                    <div id="statusChart"></div>
+                </div>
+                
+                <div class="chart-card chart-full">
+                    <h2>🗺️ Mapa de Calor de Transacciones</h2>
+                    <div id="heatmapChart"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let globalData = [];
+        let filteredData = [];
+
+        async function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            document.getElementById('fileName').textContent = `Archivo seleccionado: ${file.name}`;
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('dashboardContent').style.display = 'none';
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                    
+                    console.log('Datos cargados:', jsonData.length, 'registros');
+                    console.log('Primera fila:', jsonData[0]);
+                    
+                    globalData = jsonData;
+                    filteredData = jsonData;
+                    
+                    // Ocultar sección de carga y mostrar filtros
+                    document.getElementById('uploadSection').style.display = 'none';
+                    document.getElementById('filtersSection').classList.add('active');
+                    
+                    // Inicializar filtros
+                    initializeFilters();
+                    
+                    processData(filteredData);
+                    
+                    document.getElementById('loading').classList.remove('active');
+                    document.getElementById('dashboardContent').style.display = 'block';
+                } catch (error) {
+                    console.error('Error completo:', error);
+                    alert('Error al procesar el archivo: ' + error.message);
+                    document.getElementById('loading').classList.remove('active');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function initializeFilters() {
+            // Obtener valores únicos para cada filtro
+            const customers = [...new Set(globalData.map(item => item.customer_id).filter(Boolean))].sort();
+            const categories = [...new Set(globalData.map(item => item.category).filter(Boolean))].sort();
+            const districts = [...new Set(globalData.map(item => item.district).filter(Boolean))].sort();
+            const paymentMethods = [...new Set(globalData.map(item => item.payment_method).filter(Boolean))].sort();
+            const merchantTypes = [...new Set(globalData.map(item => item.merchant_type).filter(Boolean))].sort();
+            
+            // Obtener rango de fechas
+            const dates = globalData.map(item => new Date(item.datetime)).filter(d => !isNaN(d));
+            const minDate = new Date(Math.min(...dates)).toISOString().split('T')[0];
+            const maxDate = new Date(Math.max(...dates)).toISOString().split('T')[0];
+            
+            // Llenar select de clientes
+            const customerSelect = document.getElementById('filterCustomer');
+            customerSelect.innerHTML = '<option value="">Todos</option>';
+            customers.forEach(cust => {
+                const option = document.createElement('option');
+                option.value = cust;
+                option.textContent = cust;
+                customerSelect.appendChild(option);
+            });
+            
+            // Llenar select de categorías
+            const categorySelect = document.getElementById('filterCategory');
+            categorySelect.innerHTML = '<option value="">Todas</option>';
+            categories.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                categorySelect.appendChild(option);
+            });
+            
+            // Llenar select de distritos
+            const districtSelect = document.getElementById('filterDistrict');
+            districtSelect.innerHTML = '<option value="">Todos</option>';
+            districts.forEach(dist => {
+                const option = document.createElement('option');
+                option.value = dist;
+                option.textContent = dist;
+                districtSelect.appendChild(option);
+            });
+            
+            // Llenar select de métodos de pago
+            const paymentSelect = document.getElementById('filterPaymentMethod');
+            paymentSelect.innerHTML = '<option value="">Todos</option>';
+            paymentMethods.forEach(method => {
+                const option = document.createElement('option');
+                option.value = method;
+                option.textContent = method;
+                paymentSelect.appendChild(option);
+            });
+            
+            // Llenar select de tipos de comercio
+            const merchantSelect = document.getElementById('filterMerchantType');
+            merchantSelect.innerHTML = '<option value="">Todos</option>';
+            merchantTypes.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = type;
+                merchantSelect.appendChild(option);
+            });
+            
+            // Establecer fechas
+            document.getElementById('filterDateStart').value = minDate;
+            document.getElementById('filterDateStart').min = minDate;
+            document.getElementById('filterDateStart').max = maxDate;
+            document.getElementById('filterDateEnd').value = maxDate;
+            document.getElementById('filterDateEnd').min = minDate;
+            document.getElementById('filterDateEnd').max = maxDate;
+        }
+
+        function applyFilters() {
+            const selectedCustomer = document.getElementById('filterCustomer').value;
+            const selectedCategory = document.getElementById('filterCategory').value;
+            const selectedDistrict = document.getElementById('filterDistrict').value;
+            const selectedPayment = document.getElementById('filterPaymentMethod').value;
+            const selectedMerchant = document.getElementById('filterMerchantType').value;
+            const refundFilter = document.getElementById('filterRefund').value;
+            const dateStart = document.getElementById('filterDateStart').value;
+            const dateEnd = document.getElementById('filterDateEnd').value;
+            
+            filteredData = globalData.filter(item => {
+                // Filtrar por cliente
+                if (selectedCustomer && item.customer_id !== selectedCustomer) {
+                    return false;
+                }
+                
+                // Filtrar por categoría
+                if (selectedCategory && item.category !== selectedCategory) {
+                    return false;
+                }
+                
+                // Filtrar por distrito
+                if (selectedDistrict && item.district !== selectedDistrict) {
+                    return false;
+                }
+                
+                // Filtrar por método de pago
+                if (selectedPayment && item.payment_method !== selectedPayment) {
+                    return false;
+                }
+                
+                // Filtrar por tipo de comercio
+                if (selectedMerchant && item.merchant_type !== selectedMerchant) {
+                    return false;
+                }
+                
+                // Filtrar por reembolso
+                if (refundFilter !== '' && item.refund_flag !== parseInt(refundFilter)) {
+                    return false;
+                }
+                
+                // Filtrar por fecha
+                if (item.datetime) {
+                    const itemDate = new Date(item.datetime).toISOString().split('T')[0];
+                    if (dateStart && itemDate < dateStart) return false;
+                    if (dateEnd && itemDate > dateEnd) return false;
+                }
+                
+                return true;
+            });
+            
+            console.log(`Filtros aplicados: ${filteredData.length} de ${globalData.length} registros`);
+            processData(filteredData);
+        }
+
+        function resetFilters() {
+            // Resetear todos los selects
+            document.getElementById('filterCustomer').selectedIndex = 0;
+            document.getElementById('filterCategory').selectedIndex = 0;
+            document.getElementById('filterDistrict').selectedIndex = 0;
+            document.getElementById('filterPaymentMethod').selectedIndex = 0;
+            document.getElementById('filterMerchantType').selectedIndex = 0;
+            document.getElementById('filterRefund').selectedIndex = 0;
+            
+            // Resetear fechas
+            const dates = globalData.map(item => new Date(item.datetime)).filter(d => !isNaN(d));
+            const minDate = new Date(Math.min(...dates)).toISOString().split('T')[0];
+            const maxDate = new Date(Math.max(...dates)).toISOString().split('T')[0];
+            document.getElementById('filterDateStart').value = minDate;
+            document.getElementById('filterDateEnd').value = maxDate;
+            
+            // Aplicar filtros (sin filtros = todos los datos)
+            filteredData = globalData;
+            processData(filteredData);
+        }
+
+        // Función para cargar automáticamente el archivo por defecto
+        async function loadDefaultFile() {
+            try {
+                document.getElementById('loading').classList.add('active');
+                const response = await fetch('interbank_transactions_dataset_full.xlsx');
+                const arrayBuffer = await response.arrayBuffer();
+                const data = new Uint8Array(arrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                
+                console.log('Datos cargados automáticamente:', jsonData.length, 'registros');
+                
+                globalData = jsonData;
+                filteredData = jsonData;
+                
+                // Ocultar sección de carga y mostrar filtros
+                document.getElementById('uploadSection').style.display = 'none';
+                document.getElementById('filtersSection').classList.add('active');
+                
+                // Inicializar filtros
+                initializeFilters();
+                
+                processData(filteredData);
+                
+                document.getElementById('loading').classList.remove('active');
+                document.getElementById('dashboardContent').style.display = 'block';
+                document.getElementById('fileName').textContent = 'Archivo cargado: interbank_transactions_dataset_full.xlsx';
+            } catch (error) {
+                console.log('No se pudo cargar automáticamente. Por favor, usa el botón de carga.');
+                document.getElementById('loading').classList.remove('active');
+            }
+        }
+
+        function processData(data) {
+            // Crear estadísticas generales
+            createStats(data);
+            
+            // Crear gráficos
+            createTransactionTypeChart(data);
+            createAmountDistributionChart(data);
+            createTimeSeriesChart(data);
+            createTopBanksChart(data);
+            createStatusChart(data);
+            createHeatmapChart(data);
+        }
+
+        function createStats(data) {
+            const totalTransactions = data.length;
+            const totalAmount = data.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+            const avgAmount = totalAmount / totalTransactions;
+            
+            // Contar reembolsos
+            const refundCount = data.filter(item => item.refund_flag === 1).length;
+            const refundRate = (refundCount / totalTransactions * 100).toFixed(1);
+            
+            // Obtener distritos únicos
+            const uniqueDistricts = new Set(data.map(item => item.district).filter(d => d));
+            
+            // Obtener categorías únicas
+            const uniqueCategories = new Set(data.map(item => item.category).filter(c => c));
+            
+            // Obtener métodos de pago únicos
+            const uniquePaymentMethods = new Set(data.map(item => item.payment_method).filter(p => p));
+
+            const statsHTML = `
+                <div class="stat-card">
+                    <h3>Total Transacciones</h3>
+                    <div class="stat-value">${totalTransactions.toLocaleString()}</div>
+                    <div class="stat-change positive">📊 Volumen Total</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Monto Total</h3>
+                    <div class="stat-value">S/ ${totalAmount.toLocaleString('es-PE', {maximumFractionDigits: 2})}</div>
+                    <div class="stat-change positive">💵 Soles</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Monto Promedio</h3>
+                    <div class="stat-value">S/ ${avgAmount.toFixed(2)}</div>
+                    <div class="stat-change">📊 Por Transacción</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Tasa de Reembolso</h3>
+                    <div class="stat-value">${refundRate}%</div>
+                    <div class="stat-change ${refundRate > 5 ? 'negative' : 'positive'}">🔄 ${refundCount} Reembolsos</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Distritos</h3>
+                    <div class="stat-value">${uniqueDistricts.size}</div>
+                    <div class="stat-change">📍 Ubicaciones</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Métodos de Pago</h3>
+                    <div class="stat-value">${uniquePaymentMethods.size}</div>
+                    <div class="stat-change">💳 Opciones</div>
+                </div>
+            `;
+            
+            document.getElementById('statsGrid').innerHTML = statsHTML;
+        }
+
+        function createTransactionTypeChart(data) {
+            const categoryCount = {};
+            data.forEach(item => {
+                const category = item.category || 'Desconocido';
+                categoryCount[category] = (categoryCount[category] || 0) + 1;
+            });
+
+            const trace = {
+                values: Object.values(categoryCount),
+                labels: Object.keys(categoryCount),
+                type: 'pie',
+                hole: 0.4,
+                marker: {
+                    colors: ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#2563eb', '#1d4ed8', '#1e3a8a', '#0369a1']
+                },
+                textposition: 'inside',
+                textinfo: 'label+percent',
+                hovertemplate: '<b>%{label}</b><br>Transacciones: %{value}<br>Porcentaje: %{percent}<extra></extra>'
+            };
+
+            const layout = {
+                showlegend: true,
+                margin: { t: 10, b: 10, l: 10, r: 10 },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { family: 'Inter, sans-serif', size: 11 },
+                autosize: true
+            };
+
+            Plotly.newPlot('transactionTypeChart', [trace], layout, { responsive: true, displayModeBar: false });
+        }
+
+        function createAmountDistributionChart(data) {
+            const amounts = data.map(item => parseFloat(item.amount) || 0).filter(amt => amt > 0);
+
+            const trace = {
+                x: amounts,
+                type: 'histogram',
+                nbinsx: 40,
+                marker: {
+                    color: '#3b82f6',
+                    line: {
+                        color: '#1e40af',
+                        width: 1
+                    }
+                },
+                hovertemplate: 'Rango: S/ %{x}<br>Frecuencia: %{y}<extra></extra>'
+            };
+
+            const layout = {
+                margin: { t: 10, b: 50, l: 60, r: 20 },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                xaxis: {
+                    title: 'Monto (S/)',
+                    gridcolor: '#e2e8f0',
+                    titlefont: { size: 12 }
+                },
+                yaxis: {
+                    title: 'Frecuencia',
+                    gridcolor: '#e2e8f0',
+                    titlefont: { size: 12 }
+                },
+                font: { family: 'Inter, sans-serif', size: 11 },
+                autosize: true
+            };
+
+            Plotly.newPlot('amountDistChart', [trace], layout, { responsive: true, displayModeBar: false });
+        }
+
+        function createTimeSeriesChart(data) {
+            // Agrupar por fecha
+            const dateCount = {};
+            const dateAmount = {};
+            
+            data.forEach(item => {
+                if (item.datetime) {
+                    const date = new Date(item.datetime);
+                    const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
+                    dateCount[dateStr] = (dateCount[dateStr] || 0) + 1;
+                    dateAmount[dateStr] = (dateAmount[dateStr] || 0) + (parseFloat(item.amount) || 0);
+                }
+            });
+
+            const sortedDates = Object.keys(dateCount).sort((a, b) => new Date(a) - new Date(b));
+            const counts = sortedDates.map(date => dateCount[date]);
+            const amounts = sortedDates.map(date => dateAmount[date]);
+
+            const trace1 = {
+                x: sortedDates,
+                y: counts,
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Cantidad',
+                line: {
+                    color: '#1e40af',
+                    width: 3
+                },
+                marker: {
+                    size: 6,
+                    color: '#3b82f6'
+                },
+                hovertemplate: 'Fecha: %{x}<br>Transacciones: %{y}<extra></extra>'
+            };
+
+            const trace2 = {
+                x: sortedDates,
+                y: amounts,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Monto Total',
+                yaxis: 'y2',
+                line: {
+                    color: '#0891b2',
+                    width: 2,
+                    dash: 'dash'
+                },
+                hovertemplate: 'Fecha: %{x}<br>Monto: S/ %{y:.2f}<extra></extra>'
+            };
+
+            const layout = {
+                margin: { t: 40, b: 60, l: 70, r: 70 },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                xaxis: {
+                    title: 'Fecha',
+                    gridcolor: '#e2e8f0',
+                    titlefont: { size: 13 },
+                    automargin: true,
+                    fixedrange: false
+                },
+                yaxis: {
+                    title: 'Número de Transacciones',
+                    gridcolor: '#e2e8f0',
+                    titlefont: { size: 13 },
+                    automargin: true,
+                    fixedrange: false
+                },
+                yaxis2: {
+                    title: 'Monto Total (S/)',
+                    titlefont: { size: 13 },
+                    overlaying: 'y',
+                    side: 'right',
+                    gridcolor: 'rgba(0,0,0,0)',
+                    automargin: true,
+                    fixedrange: false
+                },
+                showlegend: true,
+                legend: {
+                    x: 0.5,
+                    y: 1.05,
+                    xanchor: 'center',
+                    yanchor: 'bottom',
+                    orientation: 'h',
+                    bgcolor: 'rgba(226, 232, 240, 0.9)',
+                    bordercolor: '#cbd5e1',
+                    borderwidth: 1,
+                    font: { size: 12 }
+                },
+                font: { family: 'Inter, sans-serif', size: 11 },
+                autosize: true,
+                width: null,
+                height: null
+            };
+
+            Plotly.newPlot('timeSeriesChart', [trace1, trace2], layout, { 
+                responsive: true, 
+                displayModeBar: false
+            }).then(() => {
+                // Forzar redimensionamiento después de crear el gráfico
+                setTimeout(() => {
+                    Plotly.Plots.resize('timeSeriesChart');
+                }, 100);
+            });
+        }
+
+        function createTopBanksChart(data) {
+            const districtCount = {};
+            const districtAmount = {};
+            
+            data.forEach(item => {
+                if (item.district) {
+                    districtCount[item.district] = (districtCount[item.district] || 0) + 1;
+                    districtAmount[item.district] = (districtAmount[item.district] || 0) + (parseFloat(item.amount) || 0);
+                }
+            });
+
+            const sortedDistricts = Object.entries(districtCount)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 12);
+
+            const trace = {
+                y: sortedDistricts.map(d => d[0]),
+                x: sortedDistricts.map(d => d[1]),
+                type: 'bar',
+                orientation: 'h',
+                marker: {
+                    color: sortedDistricts.map(d => districtAmount[d[0]]),
+                    colorscale: [
+                        [0, '#1e40af'],
+                        [0.5, '#3b82f6'],
+                        [1, '#0891b2']
+                    ],
+                    showscale: true,
+                    colorbar: {
+                        title: 'Monto Total<br>(S/)',
+                        thickness: 15,
+                        len: 0.7
+                    }
+                },
+                text: sortedDistricts.map(d => d[1]),
+                textposition: 'outside',
+                hovertemplate: '<b>%{y}</b><br>Transacciones: %{x}<br>Monto Total: S/ %{marker.color:.2f}<extra></extra>'
+            };
+
+            const layout = {
+                margin: { t: 10, b: 50, l: 120, r: 80 },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                xaxis: {
+                    title: 'Número de Transacciones',
+                    gridcolor: '#e2e8f0',
+                    titlefont: { size: 12 }
+                },
+                yaxis: {
+                    gridcolor: '#e2e8f0',
+                    tickfont: { size: 10 }
+                },
+                font: { family: 'Inter, sans-serif', size: 11 },
+                autosize: true
+            };
+
+            Plotly.newPlot('topBanksChart', [trace], layout, { responsive: true, displayModeBar: false });
+        }
+
+        function createStatusChart(data) {
+            const paymentCount = {};
+            const paymentAmount = {};
+            
+            data.forEach(item => {
+                const method = item.payment_method || 'Desconocido';
+                paymentCount[method] = (paymentCount[method] || 0) + 1;
+                paymentAmount[method] = (paymentAmount[method] || 0) + (parseFloat(item.amount) || 0);
+            });
+
+            const trace = {
+                values: Object.values(paymentCount),
+                labels: Object.keys(paymentCount),
+                type: 'pie',
+                marker: {
+                    colors: ['#1e40af', '#3b82f6', '#60a5fa', '#0891b2', '#0ea5e9', '#2563eb']
+                },
+                textposition: 'inside',
+                textinfo: 'label+percent',
+                hovertemplate: '<b>%{label}</b><br>Transacciones: %{value}<br>Porcentaje: %{percent}<br>Monto Total: S/ %{customdata:.2f}<extra></extra>',
+                customdata: Object.keys(paymentCount).map(method => paymentAmount[method])
+            };
+
+            const layout = {
+                showlegend: true,
+                margin: { t: 10, b: 10, l: 10, r: 10 },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { family: 'Inter, sans-serif', size: 11 },
+                autosize: true
+            };
+
+            Plotly.newPlot('statusChart', [trace], layout, { responsive: true, displayModeBar: false });
+        }
+
+        function createHeatmapChart(data) {
+            // Crear matriz de transacciones por hora y día de la semana
+            const heatmapData = Array(7).fill().map(() => Array(24).fill(0));
+            const daysOfWeek = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+            data.forEach(item => {
+                if (item.datetime) {
+                    const date = new Date(item.datetime);
+                    if (!isNaN(date.getTime())) {
+                        const day = date.getDay();
+                        const hour = date.getHours();
+                        heatmapData[day][hour]++;
+                    }
+                }
+            });
+
+            const trace = {
+                z: heatmapData,
+                x: Array.from({length: 24}, (_, i) => `${i.toString().padStart(2, '0')}:00`),
+                y: daysOfWeek,
+                type: 'heatmap',
+                colorscale: [
+                    [0, '#f0f9ff'],
+                    [0.2, '#bfdbfe'],
+                    [0.4, '#60a5fa'],
+                    [0.6, '#2563eb'],
+                    [0.8, '#1e40af'],
+                    [1, '#1e3a8a']
+                ],
+                showscale: true,
+                colorbar: {
+                    title: 'Transacciones',
+                    thickness: 15,
+                    len: 0.7
+                },
+                hovertemplate: '%{y}<br>%{x}<br>Transacciones: %{z}<extra></extra>'
+            };
+
+            const layout = {
+                margin: { t: 10, b: 60, l: 100, r: 80 },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                xaxis: {
+                    title: 'Hora del Día',
+                    side: 'bottom',
+                    titlefont: { size: 12 },
+                    tickfont: { size: 10 }
+                },
+                yaxis: {
+                    title: 'Día de la Semana',
+                    titlefont: { size: 12 },
+                    tickfont: { size: 10 }
+                },
+                font: { family: 'Inter, sans-serif', size: 11 },
+                autosize: true
+            };
+
+            Plotly.newPlot('heatmapChart', [trace], layout, { responsive: true, displayModeBar: false }).then(() => {
+                // Forzar redimensionamiento después de crear el gráfico
+                setTimeout(() => {
+                    Plotly.Plots.resize('heatmapChart');
+                }, 100);
+            });
+        }
+
+        // Auto-cargar el archivo por defecto si existe
+        window.addEventListener('load', function() {
+            console.log('Dashboard listo. Intentando cargar el archivo por defecto...');
+            loadDefaultFile();
+        });
+    </script>
+</body>
+</html>
