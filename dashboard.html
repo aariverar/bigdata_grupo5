@@ -636,6 +636,29 @@
                 </div>
                 
                 <div class="chart-card chart-full">
+                    <h2>👥 Recuento de Transaction_id por Customer_id</h2>
+                    <div style="margin-bottom: 15px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                        <label style="font-weight: 600; color: #1e40af;">Filtrar por número de transacciones:</label>
+                        <select id="transactionCountFilter" onchange="applyCustomerChartFilter()" style="padding: 8px 12px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 14px; background: white; color: #1e293b; cursor: pointer;">
+                            <option value="all">Todos</option>
+                            <option value="1">1 transacción</option>
+                            <option value="2">2 transacciones</option>
+                            <option value="3">3 transacciones</option>
+                            <option value="4">4 transacciones</option>
+                            <option value="5">5 transacciones</option>
+                            <option value="6">6 transacciones</option>
+                            <option value="7">7 transacciones</option>
+                            <option value="8">8 transacciones</option>
+                            <option value="9">9 transacciones</option>
+                            <option value="10">10 transacciones</option>
+                            <option value="10+">Más de 10</option>
+                        </select>
+                        <button onclick="document.getElementById('transactionCountFilter').value='all'; applyCustomerChartFilter();" style="padding: 8px 16px; background: #cbd5e1; color: #334155; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px;">Limpiar</button>
+                    </div>
+                    <div id="customerDistributionChart" style="width: 100%; overflow-x: auto;"></div>
+                </div>
+                
+                <div class="chart-card chart-full">
                     <h2>🗺️ Mapa de Calor de Transacciones</h2>
                     <div id="heatmapChart"></div>
                 </div>
@@ -882,6 +905,7 @@
             createTopBanksChart(data);
             createStatusChart(data);
             createHeatmapChart(data);
+            createCustomerDistributionChart(data);
             
             // Mostrar botón de resumen
             document.getElementById('summaryBtn').classList.add('active');
@@ -1352,6 +1376,133 @@
                 setTimeout(() => {
                     Plotly.Plots.resize('heatmapChart');
                 }, 100);
+            });
+        }
+
+        function createCustomerDistributionChart(data) {
+            // Contar transacciones por cliente
+            const customerTransactions = {};
+            data.forEach(item => {
+                const customerId = item.customer_id;
+                if (customerId) {
+                    customerTransactions[customerId] = (customerTransactions[customerId] || 0) + 1;
+                }
+            });
+
+            // Guardar datos globalmente para el filtro
+            window.customerTransactionsData = customerTransactions;
+            
+            // Aplicar filtro si existe
+            applyCustomerChartFilter();
+        }
+
+        function applyCustomerChartFilter() {
+            const filterValue = document.getElementById('transactionCountFilter').value;
+            const customerTransactions = window.customerTransactionsData || {};
+
+            let filteredCustomers = Object.entries(customerTransactions);
+
+            // Aplicar filtro según selección
+            if (filterValue !== 'all') {
+                if (filterValue === '10+') {
+                    filteredCustomers = filteredCustomers.filter(([id, count]) => count > 10);
+                } else {
+                    const targetCount = parseInt(filterValue);
+                    filteredCustomers = filteredCustomers.filter(([id, count]) => count === targetCount);
+                }
+            }
+
+            // Ordenar clientes por número de transacciones (de mayor a menor)
+            const sortedCustomers = filteredCustomers.sort((a, b) => b[1] - a[1]);
+
+            const customerIds = sortedCustomers.map(c => c[0]);
+            const transactionCounts = sortedCustomers.map(c => c[1]);
+
+            // Crear colores según el rango de transacciones
+            const colors = transactionCounts.map(count => {
+                if (count === 1) return '#ef4444'; // Rojo - muy bajo
+                if (count <= 5) return '#f59e0b'; // Naranja - bajo
+                if (count <= 10) return '#10b981'; // Verde - medio
+                return '#3b82f6'; // Azul - alto
+            });
+
+            // Calcular ancho dinámico basado en número de barras
+            const barCount = sortedCustomers.length;
+            const minWidth = 1200; // Ancho mínimo
+            const barWidth = 30; // Ancho por barra
+            const calculatedWidth = Math.max(minWidth, barCount * barWidth);
+
+            const trace = {
+                x: customerIds,
+                y: transactionCounts,
+                type: 'bar',
+                marker: {
+                    color: colors,
+                    line: {
+                        color: '#1e3a8a',
+                        width: 1
+                    }
+                },
+                text: transactionCounts,
+                textposition: 'outside',
+                hovertemplate: '<b>%{x}</b><br>Transacciones: %{y}<extra></extra>'
+            };
+
+            // Calcular estadísticas para la anotación
+            const totalCustomers = Object.keys(customerTransactions).length;
+            const lowActivityCustomers = Object.values(customerTransactions).filter(count => count >= 1 && count <= 5).length;
+            const lowActivityPercentage = ((lowActivityCustomers / totalCustomers) * 100).toFixed(1);
+            
+            const filterText = filterValue === 'all' 
+                ? 'Mostrando todos los clientes' 
+                : filterValue === '10+' 
+                    ? `Filtrado: Clientes con más de 10 transacciones (${sortedCustomers.length} clientes)`
+                    : `Filtrado: Clientes con ${filterValue} transacción(es) (${sortedCustomers.length} clientes)`;
+
+            const layout = {
+                margin: { t: 50, b: 100, l: 70, r: 50 },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                xaxis: {
+                    title: 'ID de Cliente (Customer_id)',
+                    gridcolor: '#e2e8f0',
+                    titlefont: { size: 13 },
+                    tickangle: -45,
+                    tickfont: { size: 9 }
+                },
+                yaxis: {
+                    title: 'Recuento de Transaction_id',
+                    gridcolor: '#e2e8f0',
+                    titlefont: { size: 13 }
+                },
+                font: { family: 'Inter, sans-serif', size: 11 },
+                width: calculatedWidth,
+                height: 500,
+                annotations: [{
+                    text: `Segmento Vulnerable (1-5 trans): ${lowActivityCustomers} clientes (${lowActivityPercentage}%) | Total: ${totalCustomers} clientes | ${filterText}`,
+                    xref: 'paper',
+                    yref: 'paper',
+                    x: 0.5,
+                    y: 1.08,
+                    xanchor: 'center',
+                    yanchor: 'bottom',
+                    showarrow: false,
+                    font: {
+                        size: 11,
+                        color: '#1e40af',
+                        weight: 'bold'
+                    },
+                    bgcolor: 'rgba(226, 232, 240, 0.9)',
+                    borderpad: 4,
+                    bordercolor: '#3b82f6',
+                    borderwidth: 1
+                }]
+            };
+
+            Plotly.newPlot('customerDistributionChart', [trace], layout, { 
+                responsive: false,
+                displayModeBar: true,
+                scrollZoom: true
             });
         }
 
