@@ -594,6 +594,11 @@
         <button class="summary-btn" id="summaryBtn" onclick="showSummaryModal()">
             📊 Ver Resumen General
         </button>
+        
+        <!-- Botón flotante para mostrar clustering -->
+        <button class="summary-btn" id="clusteringBtn" onclick="showClusteringModal()" style="bottom: 90px;">
+            🎯 Segmentación de Clientes
+        </button>
 
         <!-- Modal de Resumen -->
         <div class="modal" id="summaryModal">
@@ -614,6 +619,21 @@
                     <button class="modal-close" onclick="closeTransactionSummaryModal()">×</button>
                 </div>
                 <div id="transactionSummaryTableContainer"></div>
+            </div>
+        </div>
+
+        <!-- Modal de Clustering -->
+        <div class="modal" id="clusteringModal">
+            <div class="modal-content" style="max-width: 1100px;">
+                <div class="modal-header">
+                    <h2>🎯 Segmentación de Clientes mediante Clustering</h2>
+                    <button class="modal-close" onclick="closeClusteringModal()">×</button>
+                </div>
+                <p style="font-size: 14px; color: #4a5568; margin-bottom: 20px; line-height: 1.6;">
+                    Análisis de comportamiento transaccional que identifica segmentos diferenciados: clientes frecuentes de bajo ticket, 
+                    clientes ocasionales de alto ticket, y clientes con baja frecuencia y bajo monto (alto riesgo).
+                </p>
+                <div id="clusteringChartContainer" style="height: 600px;"></div>
             </div>
         </div>
 
@@ -920,8 +940,9 @@
             createHeatmapChart(data);
             createCustomerDistributionChart(data);
             
-            // Mostrar botón de resumen
+            // Mostrar botones de resumen y clustering
             document.getElementById('summaryBtn').classList.add('active');
+            document.getElementById('clusteringBtn').classList.add('active');
         }
 
         function showSummaryModal() {
@@ -940,6 +961,15 @@
 
         function closeTransactionSummaryModal() {
             document.getElementById('transactionSummaryModal').classList.remove('active');
+        }
+
+        function showClusteringModal() {
+            createClusteringChart(filteredData);
+            document.getElementById('clusteringModal').classList.add('active');
+        }
+
+        function closeClusteringModal() {
+            document.getElementById('clusteringModal').classList.remove('active');
         }
 
         function createTransactionSummaryTable() {
@@ -1529,6 +1559,154 @@
                 responsive: false,
                 displayModeBar: true,
                 scrollZoom: true
+            });
+        }
+
+        function createClusteringChart(data) {
+            // Calcular métricas por cliente
+            const customerMetrics = {};
+            
+            data.forEach(item => {
+                const customerId = item.customer_id;
+                if (!customerId) return;
+                
+                if (!customerMetrics[customerId]) {
+                    customerMetrics[customerId] = {
+                        transactions: [],
+                        categories: new Set(),
+                        amounts: []
+                    };
+                }
+                
+                if (item.datetime) customerMetrics[customerId].transactions.push(new Date(item.datetime));
+                if (item.category) customerMetrics[customerId].categories.add(item.category);
+                if (item.amount) customerMetrics[customerId].amounts.push(parseFloat(item.amount));
+            });
+
+            // Calcular txns_per_month, avg_amount, distinct_categories
+            const clusterData = [];
+            
+            Object.entries(customerMetrics).forEach(([customerId, metrics]) => {
+                if (metrics.transactions.length === 0) return;
+                
+                // Calcular rango de meses
+                const dates = metrics.transactions;
+                const minDate = new Date(Math.min(...dates));
+                const maxDate = new Date(Math.max(...dates));
+                const monthsDiff = Math.max(1, (maxDate - minDate) / (1000 * 60 * 60 * 24 * 30));
+                
+                const txns_per_month = metrics.transactions.length / monthsDiff;
+                const avg_amount = metrics.amounts.reduce((sum, amt) => sum + amt, 0) / metrics.amounts.length;
+                const distinct_categories = metrics.categories.size;
+                
+                clusterData.push({
+                    customer_id: customerId,
+                    txns_per_month,
+                    avg_amount,
+                    distinct_categories,
+                    total_txns: metrics.transactions.length
+                });
+            });
+
+            // Clustering simple basado en percentiles
+            const txnsMedian = clusterData.map(d => d.txns_per_month).sort((a, b) => a - b)[Math.floor(clusterData.length / 2)];
+            const amountMedian = clusterData.map(d => d.avg_amount).sort((a, b) => a - b)[Math.floor(clusterData.length / 2)];
+            
+            clusterData.forEach(d => {
+                if (d.txns_per_month >= txnsMedian && d.avg_amount < amountMedian) {
+                    d.cluster = 'Frecuentes bajo ticket';
+                    d.clusterColor = '#3b82f6'; // Azul
+                } else if (d.txns_per_month < txnsMedian && d.avg_amount >= amountMedian) {
+                    d.cluster = 'Ocasionales alto ticket';
+                    d.clusterColor = '#10b981'; // Verde
+                } else if (d.txns_per_month < txnsMedian && d.avg_amount < amountMedian) {
+                    d.cluster = 'Bajo riesgo (baja frecuencia y monto)';
+                    d.clusterColor = '#ef4444'; // Rojo
+                } else {
+                    d.cluster = 'Premium (alta frecuencia y monto)';
+                    d.clusterColor = '#f59e0b'; // Naranja
+                }
+            });
+
+            // Agrupar por cluster para crear trazas separadas
+            const clusterGroups = {};
+            clusterData.forEach(d => {
+                if (!clusterGroups[d.cluster]) {
+                    clusterGroups[d.cluster] = {
+                        x: [],
+                        y: [],
+                        size: [],
+                        text: [],
+                        color: d.clusterColor
+                    };
+                }
+                clusterGroups[d.cluster].x.push(d.txns_per_month);
+                clusterGroups[d.cluster].y.push(d.avg_amount);
+                clusterGroups[d.cluster].size.push(d.distinct_categories * 8); // Escalar tamaño
+                clusterGroups[d.cluster].text.push(
+                    `${d.customer_id}<br>` +
+                    `Txns/mes: ${d.txns_per_month.toFixed(2)}<br>` +
+                    `Monto promedio: S/ ${d.avg_amount.toFixed(2)}<br>` +
+                    `Categorías: ${d.distinct_categories}<br>` +
+                    `Total transacciones: ${d.total_txns}`
+                );
+            });
+
+            // Crear trazas para cada cluster
+            const traces = Object.entries(clusterGroups).map(([clusterName, group]) => ({
+                x: group.x,
+                y: group.y,
+                mode: 'markers',
+                type: 'scatter',
+                name: clusterName,
+                marker: {
+                    size: group.size,
+                    color: group.color,
+                    line: {
+                        color: '#1e3a8a',
+                        width: 1
+                    },
+                    opacity: 0.7
+                },
+                text: group.text,
+                hovertemplate: '<b>%{text}</b><extra></extra>'
+            }));
+
+            const layout = {
+                title: {
+                    text: 'Segmentación de Clientes por Comportamiento Transaccional',
+                    font: { size: 16, color: '#1a202c', weight: 'bold' }
+                },
+                xaxis: {
+                    title: 'Transacciones por Mes',
+                    gridcolor: '#e2e8f0',
+                    titlefont: { size: 13 },
+                    showgrid: true
+                },
+                yaxis: {
+                    title: 'Monto Promedio (S/)',
+                    gridcolor: '#e2e8f0',
+                    titlefont: { size: 13 },
+                    showgrid: true
+                },
+                showlegend: true,
+                legend: {
+                    x: 1.05,
+                    y: 1,
+                    bgcolor: 'rgba(255, 255, 255, 0.9)',
+                    bordercolor: '#cbd5e1',
+                    borderwidth: 1
+                },
+                margin: { t: 60, b: 60, l: 80, r: 200 },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(255,255,255,0.95)',
+                font: { family: 'Inter, sans-serif', size: 11 },
+                hovermode: 'closest'
+            };
+
+            Plotly.newPlot('clusteringChartContainer', traces, layout, { 
+                responsive: true, 
+                displayModeBar: true
             });
         }
 
