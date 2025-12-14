@@ -624,7 +624,7 @@
 
         <!-- Modal de Clustering -->
         <div class="modal" id="clusteringModal">
-            <div class="modal-content" style="max-width: 1100px;">
+            <div class="modal-content" style="max-width: 95%; width: 1400px; max-height: 90vh;">
                 <div class="modal-header">
                     <h2>🎯 Segmentación de Clientes mediante Clustering</h2>
                     <button class="modal-close" onclick="closeClusteringModal()">×</button>
@@ -633,7 +633,7 @@
                     Análisis de comportamiento transaccional que identifica segmentos diferenciados: clientes frecuentes de bajo ticket, 
                     clientes ocasionales de alto ticket, y clientes con baja frecuencia y bajo monto (alto riesgo).
                 </p>
-                <div id="clusteringChartContainer" style="height: 600px;"></div>
+                <div id="clusteringChartContainer" style="height: 700px; width: 100%;"></div>
             </div>
         </div>
 
@@ -1675,38 +1675,47 @@
             const layout = {
                 title: {
                     text: 'Segmentación de Clientes por Comportamiento Transaccional',
-                    font: { size: 16, color: '#1a202c', weight: 'bold' }
+                    font: { size: 18, color: '#1a202c', weight: 'bold' }
                 },
                 xaxis: {
                     title: 'Transacciones por Mes',
                     gridcolor: '#e2e8f0',
-                    titlefont: { size: 13 },
-                    showgrid: true
+                    titlefont: { size: 15 },
+                    showgrid: true,
+                    tickfont: { size: 12 }
                 },
                 yaxis: {
                     title: 'Monto Promedio (S/)',
                     gridcolor: '#e2e8f0',
-                    titlefont: { size: 13 },
-                    showgrid: true
+                    titlefont: { size: 15 },
+                    showgrid: true,
+                    tickfont: { size: 12 }
                 },
                 showlegend: true,
                 legend: {
-                    x: 1.05,
+                    x: 1.02,
                     y: 1,
-                    bgcolor: 'rgba(255, 255, 255, 0.9)',
+                    bgcolor: 'rgba(255, 255, 255, 0.95)',
                     bordercolor: '#cbd5e1',
-                    borderwidth: 1
+                    borderwidth: 2,
+                    font: { size: 12 }
                 },
-                margin: { t: 60, b: 60, l: 80, r: 200 },
+                margin: { t: 70, b: 70, l: 90, r: 250 },
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 plot_bgcolor: 'rgba(255,255,255,0.95)',
-                font: { family: 'Inter, sans-serif', size: 11 },
-                hovermode: 'closest'
+                font: { family: 'Inter, sans-serif', size: 12 },
+                hovermode: 'closest',
+                autosize: true
             };
 
             Plotly.newPlot('clusteringChartContainer', traces, layout, { 
                 responsive: true, 
                 displayModeBar: true
+            }).then(() => {
+                // Forzar resize del gráfico para que ocupe todo el espacio
+                setTimeout(() => {
+                    Plotly.Plots.resize('clusteringChartContainer');
+                }, 100);
             });
         }
 
