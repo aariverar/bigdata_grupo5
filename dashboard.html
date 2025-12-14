@@ -599,6 +599,11 @@
         <button class="summary-btn" id="clusteringBtn" onclick="showClusteringModal()" style="bottom: 90px;">
             🎯 Segmentación de Clientes
         </button>
+        
+        <!-- Botón flotante para mostrar perfil de clústeres -->
+        <button class="summary-btn" id="clusterProfileBtn" onclick="showClusterProfileModal()" style="bottom: 150px;">
+            📈 Perfil de Clústeres
+        </button>
 
         <!-- Modal de Resumen -->
         <div class="modal" id="summaryModal">
@@ -634,6 +639,21 @@
                     clientes ocasionales de alto ticket, y clientes con baja frecuencia y bajo monto (alto riesgo).
                 </p>
                 <div id="clusteringChartContainer" style="height: 700px; width: 100%;"></div>
+            </div>
+        </div>
+        
+        <!-- Modal de Perfil de Clústeres -->
+        <div class="modal" id="clusterProfileModal">
+            <div class="modal-content" style="max-width: 95%; width: 1400px; max-height: 90vh;">
+                <div class="modal-header">
+                    <h2>📈 Perfil Promedio por Clúster de Clientes</h2>
+                    <button class="modal-close" onclick="closeClusterProfileModal()">×</button>
+                </div>
+                <p style="font-size: 14px; color: #4a5568; margin-bottom: 20px; line-height: 1.6;">
+                    Comparación objetiva de segmentos que permite priorizar aquellos con mayor riesgo de inactividad. 
+                    Se muestran los indicadores promedio de recency, frecuencia mensual y ticket por cada clúster.
+                </p>
+                <div id="clusterProfileChartContainer" style="height: 700px; width: 100%;"></div>
             </div>
         </div>
 
@@ -940,9 +960,10 @@
             createHeatmapChart(data);
             createCustomerDistributionChart(data);
             
-            // Mostrar botones de resumen y clustering
+            // Mostrar botones de resumen, clustering y perfil
             document.getElementById('summaryBtn').classList.add('active');
             document.getElementById('clusteringBtn').classList.add('active');
+            document.getElementById('clusterProfileBtn').classList.add('active');
         }
 
         function showSummaryModal() {
@@ -970,6 +991,15 @@
 
         function closeClusteringModal() {
             document.getElementById('clusteringModal').classList.remove('active');
+        }
+        
+        function showClusterProfileModal() {
+            createClusterProfileChart(filteredData);
+            document.getElementById('clusterProfileModal').classList.add('active');
+        }
+
+        function closeClusterProfileModal() {
+            document.getElementById('clusterProfileModal').classList.remove('active');
         }
 
         function createTransactionSummaryTable() {
@@ -1715,6 +1745,200 @@
                 // Forzar resize del gráfico para que ocupe todo el espacio
                 setTimeout(() => {
                     Plotly.Plots.resize('clusteringChartContainer');
+                }, 100);
+            });
+        }
+
+        function createClusterProfileChart(data) {
+            // Calcular métricas por cliente (igual que en clustering)
+            const customerMetrics = {};
+            const today = new Date();
+            
+            data.forEach(item => {
+                const customerId = item.customer_id;
+                if (!customerId) return;
+                
+                if (!customerMetrics[customerId]) {
+                    customerMetrics[customerId] = {
+                        transactions: [],
+                        categories: new Set(),
+                        amounts: [],
+                        lastTransaction: null
+                    };
+                }
+                
+                if (item.datetime) {
+                    const transactionDate = new Date(item.datetime);
+                    customerMetrics[customerId].transactions.push(transactionDate);
+                    if (!customerMetrics[customerId].lastTransaction || transactionDate > customerMetrics[customerId].lastTransaction) {
+                        customerMetrics[customerId].lastTransaction = transactionDate;
+                    }
+                }
+                if (item.category) customerMetrics[customerId].categories.add(item.category);
+                if (item.amount) customerMetrics[customerId].amounts.push(parseFloat(item.amount));
+            });
+
+            // Calcular métricas y asignar clústeres
+            const clusterData = [];
+            
+            Object.entries(customerMetrics).forEach(([customerId, metrics]) => {
+                if (metrics.transactions.length === 0) return;
+                
+                // Calcular rango de meses
+                const dates = metrics.transactions;
+                const minDate = new Date(Math.min(...dates));
+                const maxDate = new Date(Math.max(...dates));
+                const monthsDiff = Math.max(1, (maxDate - minDate) / (1000 * 60 * 60 * 24 * 30));
+                
+                const txns_per_month = metrics.transactions.length / monthsDiff;
+                const avg_amount = metrics.amounts.reduce((sum, amt) => sum + amt, 0) / metrics.amounts.length;
+                const recency = Math.floor((today - metrics.lastTransaction) / (1000 * 60 * 60 * 24));
+                
+                clusterData.push({
+                    customer_id: customerId,
+                    txns_per_month,
+                    avg_amount,
+                    recency
+                });
+            });
+
+            // Clustering (mismo algoritmo que clustering chart)
+            const txnsMedian = clusterData.map(d => d.txns_per_month).sort((a, b) => a - b)[Math.floor(clusterData.length / 2)];
+            const amountMedian = clusterData.map(d => d.avg_amount).sort((a, b) => a - b)[Math.floor(clusterData.length / 2)];
+            
+            clusterData.forEach(d => {
+                if (d.txns_per_month >= txnsMedian && d.avg_amount < amountMedian) {
+                    d.cluster = 'Frecuentes bajo ticket';
+                    d.clusterColor = '#3b82f6';
+                } else if (d.txns_per_month < txnsMedian && d.avg_amount >= amountMedian) {
+                    d.cluster = 'Ocasionales alto ticket';
+                    d.clusterColor = '#10b981';
+                } else if (d.txns_per_month < txnsMedian && d.avg_amount < amountMedian) {
+                    d.cluster = 'Bajo riesgo (baja frecuencia y monto)';
+                    d.clusterColor = '#ef4444';
+                } else {
+                    d.cluster = 'Premium (alta frecuencia y monto)';
+                    d.clusterColor = '#f59e0b';
+                }
+            });
+
+            // Calcular promedios por clúster
+            const clusterProfiles = {};
+            
+            clusterData.forEach(d => {
+                if (!clusterProfiles[d.cluster]) {
+                    clusterProfiles[d.cluster] = {
+                        recencies: [],
+                        frequencies: [],
+                        tickets: [],
+                        color: d.clusterColor
+                    };
+                }
+                clusterProfiles[d.cluster].recencies.push(d.recency);
+                clusterProfiles[d.cluster].frequencies.push(d.txns_per_month);
+                clusterProfiles[d.cluster].tickets.push(d.avg_amount);
+            });
+
+            // Calcular promedios
+            const clusterNames = [];
+            const avgRecencies = [];
+            const avgFrequencies = [];
+            const avgTickets = [];
+            const colors = [];
+            
+            Object.entries(clusterProfiles).forEach(([clusterName, profile]) => {
+                clusterNames.push(clusterName);
+                avgRecencies.push(profile.recencies.reduce((sum, r) => sum + r, 0) / profile.recencies.length);
+                avgFrequencies.push(profile.frequencies.reduce((sum, f) => sum + f, 0) / profile.frequencies.length);
+                avgTickets.push(profile.tickets.reduce((sum, t) => sum + t, 0) / profile.tickets.length);
+                colors.push(profile.color);
+            });
+
+            // Crear gráfico de barras agrupadas
+            const trace1 = {
+                x: clusterNames,
+                y: avgRecencies,
+                name: 'Recency Promedio (días)',
+                type: 'bar',
+                marker: {
+                    color: '#ef4444',
+                    line: { color: '#b91c1c', width: 1 }
+                },
+                text: avgRecencies.map(r => r.toFixed(1)),
+                textposition: 'outside',
+                hovertemplate: '<b>%{x}</b><br>Recency: %{y:.1f} días<extra></extra>'
+            };
+
+            const trace2 = {
+                x: clusterNames,
+                y: avgFrequencies,
+                name: 'Frecuencia Mensual Promedio',
+                type: 'bar',
+                marker: {
+                    color: '#3b82f6',
+                    line: { color: '#1e40af', width: 1 }
+                },
+                text: avgFrequencies.map(f => f.toFixed(2)),
+                textposition: 'outside',
+                hovertemplate: '<b>%{x}</b><br>Frecuencia: %{y:.2f} txns/mes<extra></extra>'
+            };
+
+            const trace3 = {
+                x: clusterNames,
+                y: avgTickets,
+                name: 'Ticket Promedio (S/)',
+                type: 'bar',
+                marker: {
+                    color: '#10b981',
+                    line: { color: '#059669', width: 1 }
+                },
+                text: avgTickets.map(t => `S/ ${t.toFixed(2)}`),
+                textposition: 'outside',
+                hovertemplate: '<b>%{x}</b><br>Ticket: S/ %{y:.2f}<extra></extra>'
+            };
+
+            const layout = {
+                title: {
+                    text: 'Comparación de Indicadores Promedio por Clúster',
+                    font: { size: 18, color: '#1a202c', weight: 'bold' }
+                },
+                barmode: 'group',
+                xaxis: {
+                    title: 'Clúster',
+                    titlefont: { size: 15 },
+                    tickfont: { size: 11 },
+                    tickangle: -20
+                },
+                yaxis: {
+                    title: 'Valor del Indicador',
+                    gridcolor: '#e2e8f0',
+                    titlefont: { size: 15 }
+                },
+                showlegend: true,
+                legend: {
+                    x: 0.5,
+                    y: -0.2,
+                    xanchor: 'center',
+                    yanchor: 'top',
+                    orientation: 'h',
+                    bgcolor: 'rgba(255, 255, 255, 0.95)',
+                    bordercolor: '#cbd5e1',
+                    borderwidth: 2,
+                    font: { size: 12 }
+                },
+                margin: { t: 80, b: 120, l: 90, r: 50 },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(255,255,255,0.95)',
+                font: { family: 'Inter, sans-serif', size: 12 },
+                autosize: true
+            };
+
+            Plotly.newPlot('clusterProfileChartContainer', [trace1, trace2, trace3], layout, { 
+                responsive: true, 
+                displayModeBar: true
+            }).then(() => {
+                setTimeout(() => {
+                    Plotly.Plots.resize('clusterProfileChartContainer');
                 }, 100);
             });
         }
