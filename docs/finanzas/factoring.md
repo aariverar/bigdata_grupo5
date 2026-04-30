@@ -156,7 +156,7 @@ Al vencimiento, el cliente paga $100,000 al factor. El factor retiene lo que ade
 **R:** Se compone de una **comisión de gestión** (0.5%–2% del nominal) y una **tasa de descuento/interés** por los días de financiamiento. El costo efectivo anual suele ser superior al de un crédito bancario.
 
 ### ❓ ¿Qué diferencia hay entre factoring notificado y no notificado?
-**R:** En el **notificado**, el deudor sabe que debe pagar al factor. En el **no notificado**, sigue pagando al cedente sin saber de la cesión (el cedente luego trasfiere al factor).
+**R:** En el **notificado**, el deudor sabe que debe pagar al factor. En el **no notificado**, sigue pagando al cedente sin saber de la cesión (el cedente luego transfiere al factor).
 
 ### ❓ ¿Qué ventaja tiene el factoring frente a un préstamo bancario?
 **R:** No genera deuda en el balance (sin recurso), externaliza la cobranza y es accesible para empresas sin suficiente historial crediticio para un préstamo.
